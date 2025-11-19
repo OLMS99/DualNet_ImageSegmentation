@@ -1,3 +1,7 @@
+The project involves modifying this implementation of dualnet to perform image segmentation in a private dataset
+
+**the original readme of the project:**
+
 # DualNet: Continual Learning, Fast and Slow
 
 This project contains the implementation of the following NeurIPS 2021 paper: 
