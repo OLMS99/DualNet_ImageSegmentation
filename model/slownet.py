@@ -31,14 +31,14 @@ class Net(torch.nn.Module):
         self.debugger = 0
         # setup network
         self.is_cifar = any(x in str(args.data_file) for x in ['cifar', 'cub', 'mini'])
-        
+
         self.is_cifar=True
-        
+
         nf = 64 if 'core' in args.train_csv else 64
         lr_ = 1e-4 if 'core' in args.train_csv else 3e-4
         n_outputs = 50 if 'core' in args.train_csv else 85
         self.net = SlowNet18(n_outputs, nf=nf)
-        
+
         self.lr = args.lr
         self.transforms1 = nn.Sequential(
                 K.RandomCrop((84,84)), K.RandomHorizontalFlip(),
@@ -64,7 +64,7 @@ class Net(torch.nn.Module):
         self.transforms2 = torch.nn.DataParallel(self.transforms2, [torch.cuda.device(0), torch.cuda.device(1)])
         self.beta = args.beta
         self.opt = torch.optim.SGD(self.net.parameters(), lr=self.lr)
-        
+
         self.bt_opt = torch.optim.SGD(self.net.parameters(), lr=lr_, momentum=0.9, weight_decay=5e-4)
         # setup losses
         self.bce = torch.nn.CrossEntropyLoss()
@@ -90,7 +90,7 @@ class Net(torch.nn.Module):
         self.mem_cnt = 0
         self.n_memories = args.n_memories
         self.bsz = args.batch_size
-        
+
         self.n_outputs = n_outputs
 
         self.mse = nn.MSELoss()
@@ -125,7 +125,7 @@ class Net(torch.nn.Module):
         if offset2 < self.n_outputs:
             output[:, int(offset2):self.n_outputs].data.fill_(-10e10)
         return output
-    
+
     def memory_sampling(self,t, sz_=-1):
         mem_x = self.memx[:t,:]
         mem_y = self.memy[:t,:]
@@ -145,7 +145,7 @@ class Net(torch.nn.Module):
             mask[j] = torch.arange(offsets[j][0], offsets[j][1])
         return xx,yy, feat , mask.long().cuda()
     def observe(self, x, t, y):
-        
+
         self.debugger += 1
         if t != self.current_task:
             tt = self.current_task
@@ -158,13 +158,13 @@ class Net(torch.nn.Module):
         bsz = y.data.size(0)
         endcnt = min(self.mem_cnt + bsz, self.n_memories)
         effbsz = endcnt - self.mem_cnt
-        
+
         self.memx[t, self.mem_cnt: endcnt].copy_(x.data[: effbsz])
         self.memy[t, self.mem_cnt: endcnt].copy_(y.data[: effbsz])
         self.mem_cnt += effbsz
         if self.mem_cnt == self.n_memories:
             self.mem_cnt = 0
-        
+
         for j in range(self.n_outer):
             weights_before = deepcopy(self.net.state_dict())
             for _ in range(self.inner_steps):
@@ -180,14 +180,14 @@ class Net(torch.nn.Module):
             weights_after = self.net.state_dict()
             new_params = {name : weights_before[name] + ((weights_after[name] - weights_before[name]) * self.beta) for name in weights_before.keys()}
             self.net.load_state_dict(new_params)
-        
+
         for _ in range(self.inner_steps):
             self.zero_grad()
             loss1 = torch.tensor(0.).cuda()
             loss2 = torch.tensor(0.).cuda()
             loss3 = torch.tensor(0.).cuda()
             x_ = self.transforms0(x).cuda()
-            
+
             offset1, offset2 = self.compute_offsets(t)
             pred = self.forward(x_,t, True)
             loss1 = self.bce(pred[:, offset1:offset2], y - offset1)

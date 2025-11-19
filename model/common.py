@@ -44,11 +44,14 @@ class block(nn.Module):
         super(block, self).__init__()
         self.net = nn.Sequential(*[ nn.Linear(n_in, n_out), nn.ReLU()])
         self.net.apply(Xavier)
-    
+
     def forward(self, x):
         return self.net(x)
 
-       
+def conv1x1(in_planes, out_planes, stride=1):
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride,
+                     padding=1, bias=False)
+
 def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
                      padding=1, bias=False)
@@ -92,7 +95,9 @@ class CustomResNet(nn.Module):
         self.layer3 = self._make_layer(block, nf * 4, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, nf * 8, num_blocks[3], stride=2)
         #self.linear = nn.Linear(nf * 8 * block.expansion, int(num_classes))
-        self.linear = NCM_classifier(nf*8*block.expansion)
+        #self.linear = NCM_classifier(nf*8*block.expansion)
+        self.conv2 = conv1x1(3, nf * 1)
+
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)
@@ -109,11 +114,13 @@ class CustomResNet(nn.Module):
         out = self.layer2(out)
         out = self.layer3(out)
         out = self.layer4(out)
-        out = avg_pool2d(out, 4)
-        out = out.view(out.size(0), -1)
+        #out = avg_pool2d(out, 4)
+        #out = out.view(out.size(0), -1)
         #out = self.linear(out)
+        out = self.conv2(out)
+
         return out
-    
+
     def update_means(self, x,y, alpha= 0):
         self.linear.update_means(x,y, alpha = alpha)
 
@@ -132,8 +139,9 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, nf * 2, num_blocks[1], stride=2)
         self.layer3 = self._make_layer(block, nf * 4, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, nf * 8, num_blocks[3], stride=2)
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.linear = nn.Linear(nf * 8 * block.expansion, int(num_classes))
+        #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        #self.linear = nn.Linear(nf * 8 * block.expansion, int(num_classes))
+        self.conv2 = conv1x1(3, nf * 1)
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)
@@ -156,12 +164,15 @@ class ResNet(nn.Module):
         out = self.layer2(out)
         out = self.layer3(out)
         out = self.layer4(out)
-        out = self.avgpool(out)
-        feat = out.view(out.size(0), -1)
+        #out = self.avgpool(out)
+        #feat = out.view(out.size(0), -1)
+        out = self.conv2(out)
         if return_feat:
-            return feat
-        y = self.linear(feat) 
-        return y
+            #return feat
+            return out
+        #y = self.linear(feat) 
+        #return y
+        return out
 
 def cResNet18(num_classes, nf = 20):
     return CustomResNet(BasicBlock, [2,2,2,2], num_classes, nf)
@@ -184,7 +195,7 @@ class noReLUBlock(nn.Module):
         self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = nn.BatchNorm2d(planes)
-        
+
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion * planes:
             self.shortcut = nn.Sequential(
@@ -211,9 +222,10 @@ class MaskNet(nn.Module):
         self.layer2 = self._make_layer(block, nf * 2, num_blocks[1], stride=2)
         self.layer3 = self._make_layer(block, nf * 4, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, nf * 8, num_blocks[3], stride=2)
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.linear = nn.Linear(nf * 8 * block.expansion, int(num_classes))
-        
+        #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        #self.linear = nn.Linear(nf * 8 * block.expansion, int(num_classes))
+        self.conv2 = conv1x1(3, nf * 1)
+
         sizes = [nf*8] + [256, nf*8]
         layers = []
         for i in range(len(sizes) - 2):
@@ -253,7 +265,7 @@ class MaskNet(nn.Module):
             layers.append(block(self.in_planes, planes, stride))
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
-    
+
     def slow_learner(self):
         param = chain(self.conv1.parameters(), self.layer1.parameters(), self.layer2.parameters(),
                         self.layer3.parameters(), self.layer4.parameters(), self.projector.parameters())
@@ -283,7 +295,7 @@ class MaskNet(nn.Module):
             p.requires_grad = False
         for p in self.fast_learner():
             p.requires_grad = True
-        
+
     def forward(self, x, return_feat = False):
         bsz = x.size(0)
         if x.dim() < 4:
@@ -297,11 +309,11 @@ class MaskNet(nn.Module):
         h2 = self.layer2(h1)
         h3 = self.layer3(h2)
         h4 = self.layer4(h3)
-        
+
         if return_feat:
             feat = self.avgpool(h4)
             return feat.view(feat.size(0),-1)
-        
+
         m1_ = self.f_conv1(x)
         m1 = m1_ * h1
         m2_ = self.f_conv2(m1)
@@ -310,14 +322,15 @@ class MaskNet(nn.Module):
         m3 = m3_ * h3
         m4_ = self.f_conv4(m3)
         m4 = m4_ * h4
-        out = self.avgpool(m4)
+        #out = self.avgpool(m4)
         #out = self.avgpool(h4)
-        out = out.view(out.size(0), -1)
-        y = self.linear(out)
+        #out = out.view(out.size(0), -1)
+        #y = self.linear(out)
+
         return y
 
     def BarlowTwins(self, y1, y2):
-        
+
         z1 = self.projector(self(y1,True))
         z2 = self.projector(self(y2,True))
         z_a = (z1 - z1.mean(0)) / z1.std(0)
@@ -326,7 +339,7 @@ class MaskNet(nn.Module):
         c_ = torch.mm(z_a.T, z_b) / N
         c_diff = (c_ - torch.eye(D).cuda()).pow(2)
         c_diff[~torch.eye(D, dtype=bool)] *= 2e-3
-        loss = c_diff.sum()   
+        loss = c_diff.sum()
         return loss
 
     def SimCLR(self, y1, y2, temp=100, eps=1e-6):
@@ -339,7 +352,7 @@ class MaskNet(nn.Module):
         cov = torch.mm(out, out.t().contiguous())
         sim = torch.exp(cov / temp)
         neg = sim.sum(dim=1)
-        
+
         row_sub = torch.Tensor(neg.shape).fill_(math.e**(1/temp)).cuda()
         neg = torch.clamp(neg - row_sub, min=eps)
         pos = torch.exp(torch.sum(z_a * z_b, dim=-1) / temp)
@@ -351,19 +364,19 @@ class MaskNet(nn.Module):
     def SimSiam(self, y1, y2):
         def D(p, z):
             return -F.cosine_similarity(p, z.detach(), dim=-1).mean()
-        
+
         z1, z2 = self.projector(self(y1, True)), self.projector(self(y2,True))
         p1, p2 = self.predictor(z1), self.predictor(z2)
-    
+
         loss = (D(p1, z2).mean() + D(p2, z1).mean()) * 0.5
         return loss
-    
+
     def BYOL(self, y1, y2):
         def D(p, z):
             p = F.normalize(p, dim=-1, p=2)
             z = F.normalize(z, dim=-1, p=2)
             return 2 - 2 *(p*z).sum(dim=-1)
-        
+
         z1, z2 = self.projector(self(y1, True)), self.projector(self(y2,True))
         p1, p2 = self.predictor(z1), self.predictor(z2)
 
@@ -383,9 +396,11 @@ class SlowNet(nn.Module):
         self.layer2 = self._make_layer(block, nf * 2, num_blocks[1], stride=2)
         self.layer3 = self._make_layer(block, nf * 4, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, nf * 8, num_blocks[3], stride=2)
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.linear = nn.Linear(nf * 8 * block.expansion, int(num_classes))
-        
+        #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        #self.linear = nn.Linear(nf * 8 * block.expansion, int(num_classes))
+
+        self.conv2 = conv1x1(3, nf * 1)
+
         sizes = [nf*8] + [256, nf*8]
         layers = []
         for i in range(len(sizes) - 2):
@@ -394,7 +409,7 @@ class SlowNet(nn.Module):
             layers.append(nn.ReLU(inplace=True))
         layers.append(nn.Linear(sizes[-2], sizes[-1], bias=False))
         self.projector = nn.Sequential(*layers)
-        
+
         self.projector2 = deepcopy(self.projector)
 
         self.relu = nn.ReLU()
@@ -418,7 +433,7 @@ class SlowNet(nn.Module):
         for p in self.fast_learner():
             p.requires_grad = False
 
-        
+
     def forward(self, x, return_feat = False):
         bsz = x.size(0)
         if x.dim() < 4:
@@ -432,15 +447,16 @@ class SlowNet(nn.Module):
         h2 = self.layer2(h1)
         h3 = self.layer3(h2)
         h4 = self.layer4(h3)
-        feat = self.avgpool(h4)
-        feat = feat.view(feat.size(0),-1)
-        if return_feat:
-            return feat
-        y = self.linear(feat)
-        return y
+        #feat = self.avgpool(h4)
+        #feat = feat.view(feat.size(0),-1)
+        #if return_feat:
+        #    return feat
+        #y = self.linear(feat)
+        #return y
+        out = self.conv2(h4)
 
     def BarlowTwins(self, y1, y2):
-        
+
         z1 = self.projector(self(y1,True))
         z2 = self.projector(self(y2,True))
         z_a = (z1 - z1.mean(0)) / z1.std(0)
@@ -462,7 +478,7 @@ class SlowNet(nn.Module):
         cov = torch.mm(out, out.t().contiguous())
         sim = torch.exp(cov / temp)
         neg = sim.sum(dim=1)
-        
+
         row_sub = torch.Tensor(neg.shape).fill_(math.e**(1/temp)).cuda()
         neg = torch.clamp(neg - row_sub, min=eps)
         pos = torch.exp(torch.sum(z_a * z_b, dim=-1) / temp)
@@ -471,10 +487,10 @@ class SlowNet(nn.Module):
         loss = -torch.log(pos / (neg + eps)).mean()
         return loss
 
-    
+
 def SlowNet18(num_classes, nf=20):
     return SlowNet(BasicBlock, [2, 2, 2, 2], num_classes, nf)
-    
+
 def MaskNet18(num_classes, nf=20):
     return MaskNet(BasicBlock, [2, 2, 2, 2], num_classes, nf)
 

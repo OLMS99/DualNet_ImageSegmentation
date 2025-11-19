@@ -34,7 +34,7 @@ class Net(torch.nn.Module):
         self.debugger = 0
         # setup network
         self.is_cifar = any(x in str(args.data_file) for x in ['cifar', 'cub', 'mini'])
-        self.is_cifar = False       
+        self.is_cifar = False
 
         nf = 64 if 'core' in args.train_csv else 64
         lr_ = 1e-4 if 'core' in args.train_csv else 3e-4
@@ -65,7 +65,7 @@ class Net(torch.nn.Module):
         self.transforms2 = torch.nn.DataParallel(self.transforms2, [torch.cuda.device(0), torch.cuda.device(1)])
         self.beta = args.beta
         self.opt = torch.optim.SGD(self.net.parameters(), lr=self.lr)
-        
+
         #self.bt_opt = torch.optim.SGD(self.net.parameters(), lr=lr_, momentum=0., weight_decay=5e-4)
         self.bt_opt = torch.optim.SGD(self.net.parameters(), lr=lr_)
         # setup losses
@@ -80,8 +80,8 @@ class Net(torch.nn.Module):
         self.fisher = {}
         self.optpar = {}
         self.n_memories = args.n_memories
-        self.mem_cnt = 0       
-        
+        self.mem_cnt = 0
+
         self.n_memories = n_outputs * self.n_memories
         if 'mini' in args.data_file:
             self.memx = torch.FloatTensor(self.n_memories, 3, 128, 128)
@@ -89,7 +89,7 @@ class Net(torch.nn.Module):
             self.memx = torch.FloatTensor(self.n_memories, 3, 224, 224)
         else:
             self.memx = torch.FloatTensor(self.n_memories, n_inputs)
-        
+
         self.memy = torch.LongTensor(self.n_memories)
         self.memt = torch.LongTensor(self.n_memories)
         self.mem_feat = torch.FloatTensor(self.n_memories, n_outputs)
@@ -108,7 +108,7 @@ class Net(torch.nn.Module):
         self.unique_y = [0,1]
         self.mem_cnt = 0
         self.bsz = args.batch_size
-        
+
         self.mse = nn.MSELoss()
         self.kl = nn.KLDivLoss()
         self.samples_seen = 0
@@ -127,10 +127,10 @@ class Net(torch.nn.Module):
             x = self.transforms0(x).cuda()
         output = self.net(x)    
         return output
-    
+
     def get_t(self):
         return self.memt[:self.mem_cnt]
-        
+
     def memory_sampling(self,t, ssl=False):
         if ssl:
             sz = 32
@@ -148,7 +148,7 @@ class Net(torch.nn.Module):
             indices = torch.from_numpy(np.random.choice(bx.size(0), sz, replace=False))
             indices= indices.cuda()
             return bx[indices].cuda(), by[indices], bt[indices]
-        
+
     def add_reservoir(self, x, y,  t):
         n_elem = x.size(0)
         place_left = max(0, self.memx.size(0) - self.mem_cnt)
@@ -176,7 +176,7 @@ class Net(torch.nn.Module):
     def save_logit(self):
         idx = (self.old_idx == 0)
         idx = idx.nonzero().squeeze()
-        
+
         with torch.no_grad():
             if idx.size(0) >= 64: 
                 chunks = [idx[x:x+64] for x in range(0, idx.size(0),64)]
@@ -188,7 +188,7 @@ class Net(torch.nn.Module):
                 xx = self.transforms0(self.memx[idx]).cuda()
                 feat = self.net.forward(xx)
                 self.mem_feat[idx] = feat.data.clone()
-            
+
         self.net.train()
         self.old_idx.fill_(1)
         '''
@@ -207,7 +207,7 @@ class Net(torch.nn.Module):
         self.net.train()
         self.add_reservoir(x,y,t)
         bsz = y.data.size(0)
-        
+
         for j in range(self.n_outer):
             weights_before = deepcopy(self.net.state_dict())
             for _ in range(self.inner_steps):
@@ -226,14 +226,14 @@ class Net(torch.nn.Module):
             weights_after = self.net.state_dict()
             new_params = {name : weights_before[name] + ((weights_after[name] - weights_before[name]) * self.beta) for name in weights_before.keys()}
             self.net.load_state_dict(new_params)
-        
+
         for _ in range(self.inner_steps):
             self.zero_grad()
             loss1 = torch.tensor(0.).cuda()
             loss2 = torch.tensor(0.).cuda()
             loss3 = torch.tensor(0.).cuda()
             x_ = self.transforms0(x).cuda()
-            
+
             offset1, offset2 = self.compute_offsets(t)
             pred = self.forward(x_,t, True)
             loss1 = self.bce(pred[:, offset1:offset2], y - offset1)
@@ -247,5 +247,5 @@ class Net(torch.nn.Module):
             loss = loss1 + loss2 + loss3
             loss.backward()
             self.opt.step()
-            
+
         return 0.

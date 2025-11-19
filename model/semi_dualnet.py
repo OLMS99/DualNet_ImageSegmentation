@@ -44,13 +44,13 @@ class Net(torch.nn.Module):
         '''
         self.is_cifar=True
         #self.net=ResNet18Full(False, 50)
-        
+
         nf = 64 if 'core' in args.train_csv else 64
         #lr_ = 1e-4 if 'core' in args.train_csv else 3e-4
         lr_ = 1e-3
         n_outputs = 50 if 'core' in args.train_csv else 85
         self.net = MaskNet18(n_outputs, nf=nf)
-        
+
         self.lr = args.lr
         self.transforms1 = nn.Sequential(
                 K.RandomCrop((84,84)), K.RandomHorizontalFlip(),
@@ -76,7 +76,7 @@ class Net(torch.nn.Module):
         self.transforms2 = torch.nn.DataParallel(self.transforms2, [torch.cuda.device(0), torch.cuda.device(1)])
         self.beta = args.beta
         self.opt = torch.optim.SGD(self.net.parameters(), lr=self.lr)
-        
+
         self.bt_opt = torch.optim.SGD(self.net.parameters(), lr=lr_, momentum=0.9, weight_decay=5e-4)
         # setup losses
         self.bce = torch.nn.CrossEntropyLoss()
@@ -102,7 +102,7 @@ class Net(torch.nn.Module):
         self.mem_cnt = 0
         self.n_memories = args.n_memories
         self.bsz = args.batch_size
-        
+
         self.n_outputs = n_outputs
 
         self.mse = nn.MSELoss()
@@ -127,7 +127,7 @@ class Net(torch.nn.Module):
     def forward(self, x, t, return_feat= False):
         if not self.training:
             x = self.transforms0(x).cuda()
-        output = self.net(x)    
+        output = self.net(x)
         #if self.is_cifar:
             # make sure we predict classes within the current task
         offset1, offset2 = self.compute_offsets(t)
@@ -137,7 +137,7 @@ class Net(torch.nn.Module):
         if offset2 < self.n_outputs:
             output[:, int(offset2):self.n_outputs].data.fill_(-10e10)
         return output
-    
+
     def memory_sampling(self,t):
         mem_x = self.memx[:t,:]
         mem_y = self.memy[:t,:]
@@ -156,7 +156,7 @@ class Net(torch.nn.Module):
             mask[j] = torch.arange(offsets[j][0], offsets[j][1])
         return xx,yy, feat , mask.long().cuda()
     def observe(self, x, t, y):
-        
+
         if y.min() != -1:
             if t != self.current_task:
                 tt = self.current_task
@@ -169,13 +169,13 @@ class Net(torch.nn.Module):
             bsz = y.data.size(0)
             endcnt = min(self.mem_cnt + bsz, self.n_memories)
             effbsz = endcnt - self.mem_cnt
-            
+
             self.memx[t, self.mem_cnt: endcnt].copy_(x.data[: effbsz])
             self.memy[t, self.mem_cnt: endcnt].copy_(y.data[: effbsz])
             self.mem_cnt += effbsz
             if self.mem_cnt == self.n_memories:
                 self.mem_cnt = 0
-        
+
         for j in range(self.n_outer):
             weights_before = deepcopy(self.net.state_dict())
             for _ in range(self.inner_steps):
@@ -192,7 +192,7 @@ class Net(torch.nn.Module):
             weights_after = self.net.state_dict()
             new_params = {name : weights_before[name] + ((weights_after[name] - weights_before[name]) * self.beta) for name in weights_before.keys()}
             self.net.load_state_dict(new_params)
-        
+
         if y.min() != -1:
             for _ in range(self.inner_steps):
                 self.zero_grad()
@@ -200,7 +200,7 @@ class Net(torch.nn.Module):
                 loss2 = torch.tensor(0.).cuda()
                 loss3 = torch.tensor(0.).cuda()
                 x_ = self.transforms0(x).cuda()
-                
+
                 offset1, offset2 = self.compute_offsets(t)
                 pred = self.forward(x_,t, True)
                 loss1 = self.bce(pred[:, offset1:offset2], y - offset1)
@@ -210,7 +210,7 @@ class Net(torch.nn.Module):
                     pred_ = self.net(xx)
                     pred = torch.gather(pred_, 1, mask)
                     loss2 += self.bce(pred, yy)
-                    loss3 = self.reg * self.kl(F.log_softmax(pred / self.temp, dim = 1), target)       
+                    loss3 = self.reg * self.kl(F.log_softmax(pred / self.temp, dim = 1), target)
                 loss = loss1 + loss2 + loss3
                 loss.backward()
                 self.opt.step()

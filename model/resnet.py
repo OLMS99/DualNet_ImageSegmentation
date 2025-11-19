@@ -110,8 +110,10 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512  * block.expansion, num_classes)
+        #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        #self.fc = nn.Linear(512  * block.expansion, num_classes)
+        self.conv2 = nn.Conv2d(3, 64, kernel_size=1, stride=2, padding=3,
+                               bias=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -157,9 +159,11 @@ class ResNet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
 
-        x = self.avgpool(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
+        #x = self.avgpool(x)
+        #x = x.view(x.size(0), -1)
+        #x = self.fc(x)
+
+        x = self.conv2(x)
 
         return x
 
@@ -197,9 +201,9 @@ class noReLUBlock(nn.Module):
                 nn.BatchNorm2d(self.expansion * planes)
             )
 
-        def forward(self, x):
-            out = relu(self.bn1(self.conv1(x)))
-            out = self.bn2(self.conv2(out))
-            out += self.shortcut(x)
-            return out
+    def forward(self, x):
+        out = relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        out += self.shortcut(x)
+        return out
 
