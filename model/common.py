@@ -229,6 +229,7 @@ class MaskNet(nn.Module):
         self.layer2 = self._make_layer(block, nf * 2, num_blocks[1], stride=2)
         self.layer3 = self._make_layer(block, nf * 4, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, nf * 8, num_blocks[3], stride=2)
+
         #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         #self.linear = nn.Linear(nf * 8 * block.expansion, int(num_classes))
         self.conv2 = conv1x1(3, nf * 1)
@@ -323,6 +324,7 @@ class MaskNet(nn.Module):
         h2 = self.layer2(h1)
         h3 = self.layer3(h2)
         h4 = self.layer4(h3)
+
         classifier = conv1x1(3, nf * 1)
         #if return_feat:
             #feat = self.avgpool(h4)

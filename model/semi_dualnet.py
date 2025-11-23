@@ -15,6 +15,7 @@ import torch.nn.functional as F
 import numpy as np
 import kornia.augmentation as K
 import kornia
+from kornia.losses import dice_loss, focus_loss
 import lightly
 from copy import deepcopy
 from torchvision import datasets, transforms
