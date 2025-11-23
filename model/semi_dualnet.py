@@ -6,8 +6,8 @@
 
 import torch
 from torch.autograd import Variable
-from .common import MLP, ResNet18
-from .common import MaskNet18
+from .common import ResNet18, MaskNet18
+#from .common import MLP
 from .resnet import ResNet18 as ResNet18Full
 import pdb
 import torch.nn as nn
@@ -55,14 +55,14 @@ class Net(torch.nn.Module):
         self.transforms1 = nn.Sequential(
                 K.RandomCrop((84,84)), K.RandomHorizontalFlip(),
                 K.ColorJitter(brightness=0.4, contrast=0.4,saturation=0.2, hue=0.1, p=0.8),
-                K.RandomGrayscale(p=0.2),
+                #K.RandomGrayscale(p=0.2),
                 K.GaussianBlur((3,3),(0.1,2.0), p=1.0),
                 #K.RandomSolarize(p=0.0),
                 K.Normalize(torch.FloatTensor((0.5,0.5,0.5)), torch.FloatTensor((0.5,0.5,0.5))))
         self.transforms2 = nn.Sequential(
                 K.RandomCrop((84,84)), K.RandomHorizontalFlip(),
                 K.ColorJitter(brightness=0.4, contrast=0.4,saturation=0.2, hue=0.1, p=0.8),
-                K.RandomGrayscale(p=0.2),
+                #K.RandomGrayscale(p=0.2),
                 K.GaussianBlur((3,3),(0.1,2.0), p=0.1),
                 #K.RandomSolarize(p=0.2),
                 K.Normalize(torch.FloatTensor((0.5,0.5,0.5)), torch.FloatTensor((0.5,0.5,0.5))))

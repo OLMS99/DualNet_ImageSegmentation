@@ -6,8 +6,7 @@
 
 import torch
 from torch.autograd import Variable
-from .common import MLP, ResNet18
-from .common import MaskNet18
+from .common import MaskNet18, ResNet18
 
 import pdb
 import torch.nn as nn

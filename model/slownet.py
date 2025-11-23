@@ -6,8 +6,7 @@
 
 import torch
 from torch.autograd import Variable
-from .common import MLP, ResNet18
-from .common import SlowNet18
+from .common import ResNet18, SlowNet18
 
 import pdb
 import torch.nn as nn
@@ -100,7 +99,7 @@ class Net(torch.nn.Module):
         self.sz = args.replay_batch_size
         self.inner_steps = args.inner_steps
         self.n_outer = args.n_outer
-    def on_epoch_end(self):  
+    def on_epoch_end(self):
         pass
 
     def compute_offsets(self, task):
