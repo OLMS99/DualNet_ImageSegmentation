@@ -69,6 +69,8 @@ class Net(torch.nn.Module):
         self.bt_opt = torch.optim.SGD(self.net.parameters(), lr=lr_, momentum=0.9, weight_decay=5e-4)
         # setup losses
         self.bce = torch.nn.CrossEntropyLoss()
+        #self.dice = dice_loss()
+        #self.focal = focal_loss()
         self.n_outputs = n_outputs
         if self.is_cifar:
             self.nc_per_task = int(n_outputs // n_tasks)
@@ -110,6 +112,8 @@ class Net(torch.nn.Module):
 
         self.mse = nn.MSELoss()
         self.kl = nn.KLDivLoss()
+        #self.dice = dice_loss()
+        #self.focal = focal_loss()
         self.samples_seen = 0
         self.samples_per_task = args.samples_per_task
         self.sz = args.replay_batch_size

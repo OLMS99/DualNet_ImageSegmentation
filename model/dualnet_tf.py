@@ -14,7 +14,7 @@ import torch.nn.functional as F
 import numpy as np
 import kornia.augmentation as K
 import kornia
-from kornia.losses import dice_loss, focus_loss
+from kornia.losses import dice_loss, focal_loss
 
 from copy import deepcopy
 from torchvision import datasets, transforms
@@ -70,6 +70,8 @@ class Net(torch.nn.Module):
         self.bt_opt = torch.optim.SGD(self.net.parameters(), lr=lr_)
         # setup losses
         self.bce = torch.nn.CrossEntropyLoss()
+        #self.dice = dice_loss()
+        #self.focal = focal_loss()
         self.n_outputs = n_outputs
         if self.is_cifar:
             self.nc_per_task = int(n_outputs // n_tasks)
