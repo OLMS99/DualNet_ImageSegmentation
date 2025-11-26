@@ -1,4 +1,11 @@
-The project involves modifying this implementation of dualnet to perform image segmentation in a private dataset
+The fork focuses in an attempt of modifying this implementation of dualnet to perform image segmentation in a private dataset
+
+the modifications planned were:
+
+- change the models in the slow and fast learners
+- change classifier to a FCN head for image segmentation
+- add loss functions focal_loss and dice_loss from kornia package
+- possible cleaning
 
 **the original readme of the project:**
 
